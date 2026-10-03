@@ -345,9 +345,204 @@ const ElfVersion = enum(u32) {
     ev_current = 1,
 };
 
+const DynTag = enum(Elf64SXWord) {
+    /// d_un: ignored     | executable: mandatory   | shared object: mandatory
+    DtNull = 0,
+    /// d_un: d_val       | executable: optional    | shared object: optional
+    DtNeeded = 1,
+    /// d_un: d_val       | executable: optional    | shared object: optional
+    DtPltrelsz = 2,
+    /// d_un: d_ptr       | executable: optional    | shared object: optional
+    DtPltgot = 3,
+    /// d_un: d_ptr       | executable: mandatory   | shared object: mandatory
+    DtHash = 4,
+    /// d_un: d_ptr       | executable: mandatory   | shared object: mandatory
+    DtStrtab = 5,
+    /// d_un: d_ptr       | executable: mandatory   | shared object: mandatory
+    DtSymtab = 6,
+    /// d_un: d_ptr       | executable: mandatory   | shared object: optional
+    DtRela = 7,
+    /// d_un: d_val       | executable: mandatory   | shared object: optional
+    DtRelasz = 8,
+    /// d_un: d_val       | executable: mandatory   | shared object: optional
+    DtRelaent = 9,
+    /// d_un: d_val       | executable: mandatory   | shared object: mandatory
+    DtStrsz = 10,
+    /// d_un: d_val       | executable: mandatory   | shared object: mandatory
+    DtSyment = 11,
+    /// d_un: d_ptr       | executable: optional    | shared object: optional
+    DtInit = 12,
+    /// d_un: d_ptr       | executable: optional    | shared object: optional
+    DtFini = 13,
+    /// d_un: d_val       | executable: ignored     | shared object: optional
+    DtSoname = 14,
+    /// d_un: d_val       | executable: optional    | shared object: ignored
+    /// Signifies an entry that is at level 2.
+    DtRpath = 15,
+    /// d_un: ignored     | executable: ignored     | shared object: optional
+    /// Signifies an entry that is at level 2.
+    DtSymbolic = 16,
+    /// d_un: d_ptr       | executable: mandatory   | shared object: optional
+    DtRel = 17,
+    /// d_un: d_val       | executable: mandatory   | shared object: optional
+    DtRelsz = 18,
+    /// d_un: d_val       | executable: mandatory   | shared object: optional
+    DtRelent = 19,
+    /// d_un: d_val       | executable: optional    | shared object: optional
+    DtPltrel = 20,
+    /// d_un: d_ptr       | executable: optional    | shared object: ignored
+    DtDebug = 21,
+    /// d_un: ignored     | executable: optional    | shared object: optional
+    /// Signifies an entry that is at level 2.
+    DtTextrel = 22,
+    /// d_un: d_ptr       | executable: optional    | shared object: optional
+    DtJmprel = 23,
+    /// d_un: ignored     | executable: optional    | shared object: optional
+    /// Signifies an entry that is at level 2.
+    DtBindNow = 24,
+    /// d_un: d_ptr       | executable: optional    | shared object: optional
+    DtInitArray = 25,
+    /// d_un: d_ptr       | executable: optional    | shared object: optional
+    DtFiniArray = 26,
+    /// d_un: d_val       | executable: optional    | shared object: optional
+    DtInitArraysz = 27,
+    /// d_un: d_val       | executable: optional    | shared object: optional
+    DtFiniArraysz = 28,
+    /// d_un: d_val       | executable: optional    | shared object: optional
+    DtRunpath = 29,
+    /// d_un: d_val       | executable: optional    | shared object: optional
+    DtFlags = 30,
+    /// d_un: d_ptr       | executable: optional    | shared object: ignored
+    DtPreinitArray = 32,
+    /// d_un: d_val       | executable: optional    | shared object: ignored
+    DtPreinitArraysz = 33,
+    /// d_un: unspecified | executable: unspecified | shared object: unspecified
+    DtLoos = 0x6000000D,
+    /// d_un: unspecified | executable: unspecified | shared object: unspecified
+    DtHios = 0x6ffff000,
+    _,
+};
+
+const Elf64Dyn = extern struct {
+    d_tag: Elf64SXWord,
+    /// Can be interpreted in two ways:
+    /// 1.
+    ///    This object represents integer values (as `Elf64XWord`) with various interpretations.
+    /// 2.
+    ///    This object represents program virtual addresses.
+    ///    A file's virtual addresses might not match the memory virtual addresses during execution.
+    ///    When interpreting addresses contained in the dynamic structure (as `Elf64Addr`), the dynamic linker computes actual addresses,
+    ///    based on the original file value and the memory base address.
+    ///    For consistency, files do not contain relocation entries to "correct" addresses in the dynamic structure.
+    d_un: Elf64XWord,
+};
+
+// const Elf64Rel = extern struct {
+//     r_offset: Elf64Addr,
+//     r_info: Elf64XWord,
+// };
+//
+//
+
+const RelTypeX86_64 = enum(u32) {
+    /// field: none         ; Calculation: none
+    r_x86_64_none = 0,
+    /// field: word64       ; Calculation: S + A
+    r_x86_64_64 = 1,
+    /// field: word32       ; Calculation: S + A - P
+    r_x86_64_pc32 = 2,
+    /// field: word32       ; Calculation: G + A
+    r_x86_64_got32 = 3,
+    /// field: word32       ; Calculation: L + A - P
+    r_x86_64_plt32 = 4,
+    /// field: none         ; Calculation: none
+    r_x86_64_copy = 5,
+    /// field: wordclass    ; Calculation: S
+    r_x86_64_glob_dat = 6,
+    /// field: wordclass    ; Calculation: S
+    r_x86_64_jump_slot = 7,
+    /// field: wordclass    ; Calculation: B + A
+    r_x86_64_relative = 8,
+    /// field: word32       ; Calculation: G + GOT + A - P
+    r_x86_64_gotpcrel = 9,
+    /// field: word32       ; Calculation: S + A
+    r_x86_64_32 = 10,
+    /// field: word32       ; Calculation: S + A
+    r_x86_64_32s = 11,
+    /// field: word16       ; Calculation: S + A
+    r_x86_64_16 = 12,
+    /// field: word16       ; Calculation: S + A - P
+    r_x86_64_pc16 = 13,
+    /// field: word8        ; Calculation: S + A
+    r_x86_64_8 = 14,
+    /// field: word8        ; Calculation: S + A - P
+    r_x86_64_pc8 = 15,
+    /// field: word64       ; Calculation: unspecified
+    r_x86_64_dtpmod64 = 16,
+    /// field: word64       ; Calculation: unspecified
+    r_x86_64_dtpoff64 = 17,
+    /// field: word64       ; Calculation: unspecified
+    r_x86_64_tpoff64 = 18,
+    /// field: word32       ; Calculation: unspecified
+    r_x86_64_tlsgd = 19,
+    /// field: word32       ; Calculation: unspecified
+    r_x86_64_tlsld = 20,
+    /// field: word32       ; Calculation: unspecified
+    r_x86_64_dtpoff32 = 21,
+    /// field: word32       ; Calculation: unspecified
+    r_x86_64_gottpoff = 22,
+    /// field: word32       ; Calculation: unspecified
+    r_x86_64_tpoff32 = 23,
+    /// field: word64       ; Calculation: S + A - P
+    r_x86_64_pc64 = 24,
+    /// field: word64       ; Calculation: S + A - GOT
+    r_x86_64_gotoff64 = 25,
+    /// field: word32       ; Calculation: GOT + A - P
+    r_x86_64_gotpc32 = 26,
+    /// field: word32       ; Calculation: Z + A
+    r_x86_64_size32 = 32,
+    /// field: word64       ; Calculation: Z + A
+    r_x86_64_size64 = 33,
+    /// field: word32       ; Calculation: unspecified
+    r_x86_64_gotpc32_tlsdesc = 34,
+    /// field: none         ; Calculation: unspecified
+    r_x86_64_tlsdesc_call = 35,
+    /// field: word64×2     ; Calculation: unspecified
+    r_x86_64_tlsdesc = 36,
+    /// field: wordclass    ; Calculation: indirect (B + A)
+    r_x86_64_irelative = 37,
+    /// field: word64       ; Calculation: B + A
+    r_x86_64_relative64 = 38,
+    /// field: word32       ; Calculation: G + GOT + A - P
+    r_x86_64_gotpcrelx = 41,
+    /// field: word32       ; Calculation: G + GOT + A - P
+    r_x86_64_rex_gotpcrelx = 42,
+    _,
+};
+
+const Elf64RelaRInfo = packed struct(Elf64XWord) {
+    rel_type: u32,
+    symbol_index: u32,
+};
+
+const Elf64Rela = extern struct {
+    r_offset: Elf64Addr,
+    r_info: Elf64RelaRInfo,
+    r_addend: Elf64SXWord,
+};
+
+const DtFlags = enum(u8) {
+    DfOrigin = 0x1,
+    DfSymbolic = 0x2,
+    DfTextrel = 0x4,
+    DfBindNow = 0x8,
+    DfStaticTls = 0x10,
+};
+
 const Endianness = enum { little, big };
 const WordWidth = enum { word_32, word_64 };
 
+/// NOTE: UNION TYPES ARE NOT SUPPORTED
 fn fixEndianness(comptime T: type, instance: *T, endianness: Endianness) void {
     const native_endian = @import("builtin").cpu.arch.endian();
 
@@ -409,8 +604,179 @@ pub const Error = error{
     OutOfMemory,
 };
 
-pub fn parse(allocator: std.mem.Allocator, bytes: []const u8) Error!types.ExecutableInfo {
-    const elf_ident = tryParseTypeInstance(ElfIdent, bytes, 0, .little) orelse
+const ElfParser = @This();
+
+allocator: std.mem.Allocator,
+source: []const u8,
+endianness: Endianness,
+load_segments: std.ArrayList(types.ExecutableLoadSegment),
+relocations: std.ArrayList(types.ExecutableRelocation),
+load_bias_alignment: std.mem.Alignment,
+is_entry_valid: bool,
+ehdr_ptr: *const Elf64Ehdr,
+pt_dynamic_entries: ?[]const u8,
+
+fn parsePtLoad(self: *ElfParser, phdr_ptr: *const Elf64Phdr) Error!void {
+    if (phdr_ptr.p_memsz == 0) return;
+
+    const file_off: usize = @intCast(phdr_ptr.p_offset);
+    const file_top = std.math.add(usize, file_off, phdr_ptr.p_filesz) catch
+        return Error.InvalidFormat;
+    if (file_top > self.source.len)
+        return Error.InvalidFormat;
+    const file_bytes = self.source[file_off..file_top];
+
+    const mem_top = std.math.add(types.VirtAddr, phdr_ptr.p_vaddr, phdr_ptr.p_memsz) catch
+        return Error.InvalidFormat;
+
+    if (self.ehdr_ptr.e_entry >= phdr_ptr.p_vaddr and self.ehdr_ptr.e_entry < mem_top)
+        self.is_entry_valid = true;
+
+    if (phdr_ptr.p_filesz > phdr_ptr.p_memsz)
+        return Error.InvalidFormat;
+
+    if (phdr_ptr.p_align > 1 and phdr_ptr.p_vaddr % phdr_ptr.p_align != phdr_ptr.p_offset % phdr_ptr.p_align)
+        return Error.InvalidFormat;
+
+    // NOTE: IMPORTANT: The Sys V specs state that `p_align` **should** be a power of two (given it is bigger than 1),
+    // but **NOT must**. This means that the current implementation may disgard some correct executable files.
+    // This is the reason `Error.Unsupported` is returned instead of `Error.InvalidFormat`.
+    if (phdr_ptr.p_align > 1) {
+        if (!std.math.isPowerOfTwo(phdr_ptr.p_align))
+            return Error.Unsupported;
+        const alignment = std.mem.Alignment.fromByteUnits(@intCast(phdr_ptr.p_align));
+        self.load_bias_alignment = self.load_bias_alignment.max(alignment);
+    }
+
+    self.load_segments.append(self.allocator, .{
+        .src = file_bytes,
+        .preferred_dest_begin = phdr_ptr.p_vaddr,
+        .preferred_dest_end = mem_top,
+    }) catch return Error.OutOfMemory;
+}
+
+fn recordPtDynamic(self: *ElfParser, phdr_ptr: *const Elf64Phdr) Error!void {
+    const file_top = std.math.add(types.VirtAddr, phdr_ptr.p_offset, phdr_ptr.p_filesz) catch
+        return Error.InvalidFormat;
+    if (file_top > self.source.len)
+        return Error.InvalidFormat;
+    if (phdr_ptr.p_filesz == 0 or phdr_ptr.p_filesz % @sizeOf(Elf64Dyn) != 0)
+        return Error.InvalidFormat;
+    self.pt_dynamic_entries = self.source[phdr_ptr.p_offset..file_top];
+}
+
+fn parseDtRela(self: *ElfParser, rela: types.VirtAddr, relasz: usize, relaent: usize) Error!void {
+    if (relaent != @sizeOf(Elf64Rela) or relasz % relaent != 0)
+        return Error.InvalidFormat;
+    const rela_table_virt_top: types.VirtAddr = std.math.add(types.VirtAddr, rela, relasz) catch
+        return Error.InvalidFormat;
+    var load_segment: types.ExecutableLoadSegment = undefined;
+    var found_load_segment = false;
+    for (self.load_segments.items) |segment| {
+        if (rela < segment.preferred_dest_begin or rela_table_virt_top >= segment.preferred_dest_end)
+            continue;
+        found_load_segment = true;
+        load_segment = segment;
+        break;
+    }
+    if (!found_load_segment)
+        return Error.InvalidFormat;
+
+    const rela_entry_count = relasz / relaent;
+    for (0..rela_entry_count) |i| {
+        const segment_entry_off = i * @sizeOf(Elf64Rela);
+        const rel_entry: Elf64Rela = tryParseTypeInstance(Elf64Rela, load_segment.src, segment_entry_off, self.endianness) orelse
+            return Error.InvalidFormat;
+        const rel_type: RelTypeX86_64 = @enumFromInt(rel_entry.r_info.rel_type);
+        switch (rel_type) {
+            .r_x86_64_relative => {},
+            else => return Error.Unsupported,
+        }
+        if (rel_entry.r_info.symbol_index != 0)
+            return Error.InvalidFormat;
+
+        const preferred_target = std.math.cast(types.VirtAddr, rel_entry.r_addend) orelse
+            return Error.InvalidFormat;
+
+        self.relocations.append(
+            self.allocator,
+            .{
+                .preferred_slot = rel_entry.r_offset,
+                .preferred_target = preferred_target,
+            },
+        ) catch return Error.OutOfMemory;
+    }
+}
+
+/// Must be called after all PT_LOADs have been parsed.
+/// Doesn't do anything, if `self.pt_dynamic_entries` is not set. See `self.recordPtDynamic(...)`.
+fn parsePtDynamic(self: *ElfParser) Error!void {
+    if (self.pt_dynamic_entries == null)
+        return;
+
+    const dyn_entry_count: usize = self.pt_dynamic_entries.?.len / @sizeOf(Elf64Dyn);
+
+    var rela: ?types.VirtAddr = null;
+    var relasz: ?usize = null;
+    var relaent: ?usize = null;
+
+    var has_reached_dt_null = false;
+    for (0..dyn_entry_count) |i| {
+        const entry_off = i * @sizeOf(Elf64Dyn);
+        const entry = tryParseTypeInstance(Elf64Dyn, self.pt_dynamic_entries.?, entry_off, self.endianness) orelse
+            return Error.InvalidFormat;
+
+        const d_tag: DynTag = @enumFromInt(entry.d_tag);
+        switch (d_tag) {
+            .DtNull => {
+                has_reached_dt_null = true;
+                break;
+            },
+
+            // Collect DT_RELA information.
+            .DtRela => {
+                if (rela != null)
+                    return Error.InvalidFormat;
+                rela = @as(types.VirtAddr, entry.d_un);
+            },
+            .DtRelasz => {
+                if (relasz != null)
+                    return Error.InvalidFormat;
+                relasz = @as(usize, entry.d_un);
+            },
+            .DtRelaent => {
+                if (relaent != null)
+                    return Error.InvalidFormat;
+                relaent = @as(usize, entry.d_un);
+            },
+
+            // Requires shared libraries.
+            .DtNeeded => return Error.Unsupported,
+
+            .DtTextrel => return Error.Unsupported,
+            // .DtRelr => return Error.Unsupported,
+
+            else => continue,
+        }
+    }
+
+    if (!has_reached_dt_null)
+        return Error.InvalidFormat;
+
+    if (rela) |r| {
+        if (relaent == null or relasz == null)
+            return Error.InvalidFormat;
+        try self.parseDtRela(r, relasz.?, relaent.?);
+    }
+}
+
+fn deinit(self: *ElfParser) void {
+    self.relocations.clearAndFree(self.allocator);
+    self.load_segments.clearAndFree(self.allocator);
+}
+
+pub fn parse(allocator: std.mem.Allocator, source: []const u8) Error!types.ExecutableInfo {
+    const elf_ident = tryParseTypeInstance(ElfIdent, source, 0, .little) orelse
         return Error.InvalidFormat;
     if (elf_ident.ei_mag != magic_number or
         elf_ident.ei_version != @intFromEnum(ElfVersion.ev_current))
@@ -432,83 +798,87 @@ pub fn parse(allocator: std.mem.Allocator, bytes: []const u8) Error!types.Execut
         return Error.Unsupported;
 
     const elf_ehdr_offset = @sizeOf(ElfIdent);
-    const elf_ehdr = tryParseTypeInstance(Elf64Ehdr, bytes, elf_ehdr_offset, endianness) orelse
+    const ehdr = tryParseTypeInstance(Elf64Ehdr, source, elf_ehdr_offset, endianness) orelse
         return Error.InvalidFormat;
 
-    if (elf_ehdr.e_version != @intFromEnum(ElfVersion.ev_current))
+    if (ehdr.e_version != @intFromEnum(ElfVersion.ev_current))
         return Error.InvalidFormat;
 
-    const e_machine = std.enums.fromInt(ElfMachine, elf_ehdr.e_machine) orelse
+    const e_machine = std.enums.fromInt(ElfMachine, ehdr.e_machine) orelse
         return Error.Unsupported;
     if (e_machine != .em_x86_64)
         return Error.Unsupported;
 
-    if (elf_ehdr.e_phnum == 0 or
-        elf_ehdr.e_phoff == 0)
+    if (ehdr.e_phnum == 0 or
+        ehdr.e_phoff == 0)
         return Error.Unsupported;
 
-    if (elf_ehdr.e_ehsize != @sizeOf(Elf64Ehdr) + @sizeOf(ElfIdent))
+    if (ehdr.e_ehsize != @sizeOf(Elf64Ehdr) + @sizeOf(ElfIdent))
         return Error.InvalidFormat;
 
-    if (elf_ehdr.e_phentsize != @sizeOf(Elf64Phdr))
+    if (ehdr.e_phentsize != @sizeOf(Elf64Phdr))
         return Error.InvalidFormat;
 
-    const prog_h_table_size = std.math.mul(usize, @sizeOf(Elf64Phdr), @as(usize, elf_ehdr.e_phnum)) catch
+    const e_type = std.enums.fromInt(ElfType, ehdr.e_type) orelse
+        return Error.Unsupported;
+    if (e_type != .et_dyn)
+        return Error.Unsupported;
+
+    const prog_h_table_size = std.math.mul(usize, @sizeOf(Elf64Phdr), @as(usize, ehdr.e_phnum)) catch
         return Error.InvalidFormat;
-    const prog_h_top_file_off = std.math.add(usize, @intCast(elf_ehdr.e_phoff), prog_h_table_size) catch
+    const prog_h_top_file_off = std.math.add(usize, @intCast(ehdr.e_phoff), prog_h_table_size) catch
         return Error.InvalidFormat;
-    if (prog_h_top_file_off > bytes.len)
+    if (prog_h_top_file_off > source.len)
         return Error.InvalidFormat;
 
-    var load_segments: std.ArrayList(types.ExecutableLoadSegment) = .empty;
-    errdefer load_segments.clearAndFree(allocator);
+    var parse_state = ElfParser{
+        .allocator = allocator,
+        .ehdr_ptr = &ehdr,
+        .endianness = endianness,
+        .is_entry_valid = false,
+        .load_bias_alignment = .@"1",
+        .load_segments = .empty,
+        .relocations = .empty,
+        .source = source,
+        .pt_dynamic_entries = null,
+    };
+    defer parse_state.deinit();
 
-    var is_entry_valid = false;
-    for (0..elf_ehdr.e_phnum) |i| {
+    var has_pt_dynamic = false;
+    for (0..ehdr.e_phnum) |i| {
         // Calculations already validated in `prog_h_table_size` and `prog_h_top_file_off`.
-        const header_off = @as(usize, elf_ehdr.e_phoff) + @sizeOf(Elf64Phdr) * i;
-        const header = tryParseTypeInstance(Elf64Phdr, bytes, header_off, endianness) orelse
+        const phdr_off = @as(usize, ehdr.e_phoff) + @sizeOf(Elf64Phdr) * i;
+        const phdr = tryParseTypeInstance(Elf64Phdr, source, phdr_off, endianness) orelse
             return Error.InvalidFormat;
-        switch (header.p_type) {
-            .pt_load => {},
+        switch (phdr.p_type) {
+            .pt_load => try parse_state.parsePtLoad(&phdr),
+            .pt_dynamic => {
+                if (has_pt_dynamic)
+                    return Error.InvalidFormat;
+                try parse_state.recordPtDynamic(&phdr);
+                has_pt_dynamic = true;
+            },
             .pt_interp => return Error.Unsupported,
             else => continue,
         }
-
-        if (header.p_memsz == 0) continue;
-
-        const file_off: usize = @intCast(header.p_offset);
-        const file_top = std.math.add(usize, file_off, header.p_filesz) catch
-            return Error.InvalidFormat;
-        if (file_top > bytes.len)
-            return Error.InvalidFormat;
-        const file_bytes = bytes[file_off..file_top];
-
-        const mem_top = std.math.add(types.VirtAddr, header.p_vaddr, header.p_memsz) catch
-            return Error.InvalidFormat;
-
-        if (elf_ehdr.e_entry >= header.p_vaddr and elf_ehdr.e_entry <= mem_top)
-            is_entry_valid = true;
-
-        if (header.p_filesz > header.p_memsz)
-            return Error.InvalidFormat;
-
-        load_segments.append(allocator, .{
-            .src = file_bytes,
-            .dest_begin = header.p_vaddr,
-            .dest_end = mem_top,
-        }) catch return Error.OutOfMemory;
     }
 
-    if (!is_entry_valid) return Error.InvalidFormat;
+    if (!parse_state.is_entry_valid) return Error.InvalidFormat;
 
-    const load_segments_slice = load_segments.toOwnedSlice(allocator) catch
+    try parse_state.parsePtDynamic();
+
+    const load_segments = parse_state.load_segments.toOwnedSlice(allocator) catch
         return Error.OutOfMemory;
-    errdefer allocator.free(load_segments_slice);
+    errdefer allocator.free(load_segments);
+    const relocations = parse_state.relocations.toOwnedSlice(allocator) catch
+        return Error.OutOfMemory;
+    errdefer allocator.free(relocations);
 
     return .{
         .allocator = allocator,
-        .load_segments = load_segments_slice,
-        .entry_addr = elf_ehdr.e_entry,
+        .load_segments = load_segments,
+        .entry_addr = ehdr.e_entry,
+        .load_bias_alignment = parse_state.load_bias_alignment,
+        .relocations = relocations,
     };
 }

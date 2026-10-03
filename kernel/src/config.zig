@@ -5,21 +5,39 @@ pub const page_size_bytes: usize = 4096;
 
 pub const log_buffer_size_bytes: usize = 1024 * 2;
 
-pub const kernel_heap_start: usize = 0xffffffdf80000000;
-pub const kernel_heap_end: usize = 0xffffffff7fffffff;
+pub const executable_arena_start: types.VirtAddr = 0x0000000040000000;
+pub const executable_arena_end: types.VirtAddr = 0x0000010000000000;
+pub const kernel_heap_arena_start: types.VirtAddr = 0xffffffdf80000000;
+pub const kernel_heap_arena_end: types.VirtAddr = 0xffffffff7fffffff;
 
 extern const _kernel_start: u8;
 extern const _kernel_end: u8;
-pub inline fn kernelStartVirtAddr() types.VirtAddr {
+pub inline fn kernelStart() types.VirtAddr {
     return @intFromPtr(&_kernel_start);
 }
-pub inline fn kernelEndVirtAddr() types.VirtAddr {
+pub inline fn kernelEnd() types.VirtAddr {
     return @intFromPtr(&_kernel_end);
 }
 pub inline fn kernelSizeBytes() usize {
-    return @as(usize, kernelEndVirtAddr() - kernelStartVirtAddr());
+    return @as(usize, kernelEnd() - kernelStart());
 }
 pub inline fn kernelSizePages() usize {
     return std.math.divCeil(usize, kernelSizeBytes(), page_size_bytes) catch
         unreachable;
 }
+
+// FIXME: Put this to a different file.
+//
+// Address ranges:
+//
+// Low address space (userspace pages):
+// - [0x0000000000000000 - 0x0000000040000000) Unmapped region
+// - [0x0000000040000000 - 0x0000010000000000] Running executable image
+// - [?????????????????? - ??????????????????) Dynamic libraries
+// - [?????????????????? - ??????????????????) Userspace heap
+// - [?????????????????? - ??????????????????) Userspace stack - ????
+// High address space (kernel pages):
+// - [?????????????????? - 0xffffffdf80000000) Reserved
+// - [0xffffffdf80000000 - 0xffffffff7fffffff] Kernel heap
+// - [?????????????????? - ??????????????????] Reserved
+// - [0xffffffff80000000 - 0xffffffffffffffff] Kernel executable image

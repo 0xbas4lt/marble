@@ -81,6 +81,9 @@ const ChunkHeader = packed struct {
         address: types.VirtAddr,
         options: NewHeaderOptions,
     ) *ChunkHeader {
+        const log = @import("log.zig");
+        log.info("kalloc: newAtAddress, address: 0x{X}", .{address});
+
         var header: *ChunkHeader = @ptrFromInt(address);
         header.prev_addr = @intFromPtr(options.prev_chunk);
         header.next_addr = @intFromPtr(options.next_chunk);
@@ -100,13 +103,13 @@ fn map(virt_addr: types.VirtAddr, phys_addr: types.VirtAddr) AllocError!void {
 pub fn init() void {
     const frame = pmm.allocateFrame() catch
         @panic("kalloc init: out of memory");
-    map(config.kernel_heap_start, frame.physBase()) catch
+    map(config.kernel_heap_arena_start, frame.physBase()) catch
         @panic("kalloc init: map failed");
 
     const free_byte_count = config.page_size_bytes - @sizeOf(ChunkHeader) - backref_size_bytes;
 
     const chunk = ChunkHeader.newAtAddress(
-        config.kernel_heap_start,
+        config.kernel_heap_arena_start,
         .{
             .next_chunk = undefined,
             .prev_chunk = undefined,

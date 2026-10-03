@@ -5,12 +5,13 @@ const serial = @import("serial.zig");
 const pmm = @import("physical_memory_manager.zig");
 const config = @import("config.zig");
 const types = @import("types.zig");
-const gdt = @import("gdt.zig");
-const idt = @import("idt.zig");
+const gdt = @import("arch/gdt.zig");
+const idt = @import("arch/idt.zig");
 const vmm = @import("virtual_memory_manager.zig");
 const arch = @import("arch/x86_64.zig");
 const kalloc = @import("kernel_allocator.zig");
 const elf_parser = @import("elf_parser.zig");
+const executable_loader = @import("executable_loader.zig");
 
 pub const panic = @import("panic.zig");
 pub const std_options_debug_io: std.Io = std.Io.failing;
@@ -24,13 +25,14 @@ const Error = error{
     OutOfMemory,
     InsufficientBootInfo,
     NoUserspace,
+    MalformedUserspace,
 };
 
 fn main() Error!void {
     if (!limine.base_revision.isSupported()) arch.halt();
 
     serial.init();
-    log.info("boot finished", .{});
+    log.info("boot finished; initializing", .{});
 
     var hhdm_offset: types.PhysAddr = undefined;
 
@@ -78,7 +80,7 @@ fn main() Error!void {
 
     kalloc.init();
     log.info("kalloc intialized", .{});
-    var kernel_page_allocator = kalloc.page_allocator;
+    var kernel_heap_page_allocator = kalloc.page_allocator;
 
     const BootProgram = struct {
         cmdline: ?[]const u8 = null,
@@ -87,12 +89,12 @@ fn main() Error!void {
         parsed_executable_info: ?types.ExecutableInfo = null,
     };
 
-    var boot_programs = kernel_page_allocator.alloc(BootProgram, module_response.module_count) catch
+    var boot_programs = kernel_heap_page_allocator.alloc(BootProgram, module_response.module_count) catch
         return Error.OutOfMemory;
     for (module_response.modules(), 0..) |mod, i| {
         if (@intFromPtr(mod.cmdline) != 0) {
             const bootloader_mem_str: []const u8 = std.mem.span(mod.cmdline);
-            const str = kernel_page_allocator.alloc(u8, bootloader_mem_str.len) catch
+            const str = kernel_heap_page_allocator.alloc(u8, bootloader_mem_str.len) catch
                 return Error.OutOfMemory;
             @memcpy(str, bootloader_mem_str);
             boot_programs[i].cmdline = str;
@@ -100,7 +102,7 @@ fn main() Error!void {
 
         if (@intFromPtr(mod.path) != 0) {
             const bootloader_mem_str: []const u8 = std.mem.span(mod.path);
-            const str = kernel_page_allocator.alloc(u8, bootloader_mem_str.len) catch
+            const str = kernel_heap_page_allocator.alloc(u8, bootloader_mem_str.len) catch
                 return Error.OutOfMemory;
             @memcpy(str, bootloader_mem_str);
             boot_programs[i].limine_path = str;
@@ -110,8 +112,8 @@ fn main() Error!void {
     }
     defer {
         for (boot_programs) |p| {
-            if (p.cmdline) |a| kernel_page_allocator.free(a);
-            if (p.limine_path) |a| kernel_page_allocator.free(a);
+            if (p.cmdline) |a| kernel_heap_page_allocator.free(a);
+            if (p.limine_path) |a| kernel_heap_page_allocator.free(a);
         }
     }
 
@@ -125,9 +127,9 @@ fn main() Error!void {
 
     for (boot_programs) |*prog| {
         const name = prog.limine_path orelse "unknown";
-        if (elf_parser.parse(kernel_page_allocator, prog.bytes)) |parsed| {
+        if (elf_parser.parse(kernel_heap_page_allocator, prog.bytes)) |parsed| {
             prog.parsed_executable_info = parsed;
-            log.info("parsed `{s}` with no errors", .{name});
+            log.info("parsed `{s}`", .{name});
         } else |err| {
             prog.parsed_executable_info = null;
             switch (err) {
@@ -141,7 +143,23 @@ fn main() Error!void {
         if (p.parsed_executable_info) |*pei|
             pei.deinit();
 
-    log.info("idle.", .{});
+    var loaded_executable = executable_loader.load(
+        kernel_heap_page_allocator,
+        &boot_programs[0].parsed_executable_info.?,
+    ) catch |err| switch (err) {
+        executable_loader.Error.InvalidAddress => {
+            log.err("unable to load `{s}`: invalid virtual address", .{boot_programs[0].limine_path.?});
+            return Error.MalformedUserspace;
+        },
+        executable_loader.Error.OutOfMemory => return Error.OutOfMemory,
+    };
+    errdefer loaded_executable.deinit();
+    log.info("loaded executable", .{});
+
+    const executableEnter: *fn () callconv(.c) void = @ptrFromInt(loaded_executable.entry_addr);
+    executableEnter();
+
+    log.info("exiting.", .{});
 }
 
 export fn _start() callconv(.c) noreturn {
@@ -149,6 +167,7 @@ export fn _start() callconv(.c) noreturn {
         Error.OutOfMemory => @panic("out of memory"),
         Error.NoUserspace => log.err("nothing to do: no programs provided. halting", .{}),
         Error.InsufficientBootInfo => log.err("cannot boot: not enough bootloader data", .{}),
+        Error.MalformedUserspace => log.err("refusing to boot: malformed initial userspace program", .{}),
     };
     arch.halt();
 }

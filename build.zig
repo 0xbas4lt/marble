@@ -71,6 +71,7 @@ pub fn build(b: *std.Build) void {
         .use_llvm = true,
         .use_lld = true,
     });
+    program_hello.pie = true;
     program_hello.setLinkerScript(b.path("programs/linker/x86_64.ld"));
     b.installArtifact(program_hello);
 }

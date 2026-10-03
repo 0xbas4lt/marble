@@ -67,7 +67,7 @@ fn getOrCreateChildTable(comptime Child: type, entry: *DirectoryEntry) Error!*[5
 
     const phys_frame = try pmm.allocateFrame();
     const child: *[512]Child = @ptrFromInt(phys_frame.virtBase());
-    @memset(std.mem.asBytes(child), 0);
+    std.crypto.secureZero(Child, child);
     entry.referenced_physical_address = @truncate(phys_frame.physBase() >> 12);
     return child;
 }
@@ -172,7 +172,7 @@ pub fn init(kernel_base_virt_address: types.VirtAddr) void {
     const pml4_frame = pmm.allocateFrame() catch
         @panic(oom_msg);
     pml4 = @ptrFromInt(pml4_frame.virtBase());
-    @memset(std.mem.asBytes(pml4), 0);
+    std.crypto.secureZero(DirectoryEntry, pml4);
 
     for (0..config.kernelSizePages()) |i| map(
         kernel_base_virt_address + i * config.page_size_bytes,
