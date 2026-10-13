@@ -2,7 +2,11 @@ const std = @import("std");
 const types = @import("types.zig");
 const config = @import("config.zig");
 const arch = @import("arch/x86_64.zig");
-const pmm = @import("physical_memory_manager.zig");
+
+const Pmm = @import("physical_memory_manager.zig");
+const Vmm = @This();
+
+pmm: *Pmm,
 
 /// Universal structure, used as PML4E, PDPTE, PDE
 const DirectoryEntry = packed struct(u64) {
@@ -62,10 +66,10 @@ var pml4: *[512]DirectoryEntry = undefined;
 
 /// If the provided entry's `present` flag is set, returns its referenced child table.
 /// Otherwise, allocates a new frame, zeroes it, and sets entry's reference to point to the new table.
-fn getOrCreateChildTable(comptime Child: type, entry: *DirectoryEntry) Error!*[512]Child {
-    if (entry.p == 1) return @ptrFromInt((@as(types.PhysAddr, entry.referenced_physical_address) << 12) + pmm.hhdmOffset());
+fn getOrCreateChildTable(self: *Vmm, comptime Child: type, entry: *DirectoryEntry) Error!*[512]Child {
+    if (entry.p == 1) return @ptrFromInt((@as(types.PhysAddr, entry.referenced_physical_address) << 12) + self.pmm.hhdmOffset());
 
-    const phys_frame = try pmm.allocateFrame();
+    const phys_frame = try self.pmm.allocateFrame();
     const child: *[512]Child = @ptrFromInt(phys_frame.virtBase());
     std.crypto.secureZero(Child, child);
     entry.referenced_physical_address = @truncate(phys_frame.physBase() >> 12);
@@ -81,7 +85,7 @@ const PteResult = struct {
 /// If the page at the provided virtual address is not mapped, creates all necessary structures, and returns `PteResult` with `found_existing` flag unset,
 /// and with `pte` flag containing a 'default' _(check this implementation)_ PTE, with the `present` flag **unset**.
 /// Otherwise returns `PteResult` with a pointer to the existing PTE, and `found_existing` set.
-fn getOrCreatePageTableEntry(virt_addr: types.VirtAddr) Error!PteResult {
+fn getOrCreatePageTableEntry(self: *Vmm, virt_addr: types.VirtAddr) Error!PteResult {
     const indicies = virtAddr4KibToIndicies(virt_addr);
 
     var pml4e: *DirectoryEntry = &pml4[indicies.pml4];
@@ -95,7 +99,7 @@ fn getOrCreatePageTableEntry(virt_addr: types.VirtAddr) Error!PteResult {
         .referenced_physical_address = undefined,
         .xd = 0,
     };
-    const pdpt = try getOrCreateChildTable(DirectoryEntry, pml4e);
+    const pdpt = try self.getOrCreateChildTable(DirectoryEntry, pml4e);
     const pdpte = &pdpt[indicies.directory_ptr];
     pml4e.p = 1;
 
@@ -109,7 +113,7 @@ fn getOrCreatePageTableEntry(virt_addr: types.VirtAddr) Error!PteResult {
         .referenced_physical_address = undefined,
         .xd = 0,
     };
-    const pd = try getOrCreateChildTable(DirectoryEntry, pdpte);
+    const pd = try self.getOrCreateChildTable(DirectoryEntry, pdpte);
     const pde = &pd[indicies.directory];
     pdpte.p = 1;
 
@@ -123,7 +127,7 @@ fn getOrCreatePageTableEntry(virt_addr: types.VirtAddr) Error!PteResult {
         .referenced_physical_address = undefined,
         .xd = 0,
     };
-    const pt = try getOrCreateChildTable(PageTableEntry, pde);
+    const pt = try self.getOrCreateChildTable(PageTableEntry, pde);
     const pte = &pt[indicies.table];
     pde.p = 1;
 
@@ -150,9 +154,9 @@ fn getOrCreatePageTableEntry(virt_addr: types.VirtAddr) Error!PteResult {
 
 pub const MapFlags = struct {};
 
-pub fn map(virt_addr: types.VirtAddr, phys_addr: types.PhysAddr, flags: MapFlags) Error!void {
+pub fn map(self: *Vmm, virt_addr: types.VirtAddr, phys_addr: types.PhysAddr, flags: MapFlags) Error!void {
     _ = flags;
-    const result = try getOrCreatePageTableEntry(virt_addr);
+    const result = try self.getOrCreatePageTableEntry(virt_addr);
     if (result.found_existing) return error.AlreadyMapped;
     result.pte.page_physical_address = @truncate(phys_addr >> 12);
     result.pte.p = 1;
@@ -168,13 +172,15 @@ const Cr3 = packed struct(u64) {
 
 /// Initializes the VMM, and sets up the paging. May panic.
 /// NOTE: Stack is not tracked explicitly in any way.
-pub fn init(kernel_base_virt_address: types.VirtAddr) void {
+pub fn init(pmm: *Pmm, kernel_base_virt_address: types.VirtAddr) Vmm {
+    var instance = Vmm{ .pmm = pmm };
+
     const pml4_frame = pmm.allocateFrame() catch
         @panic(oom_msg);
     pml4 = @ptrFromInt(pml4_frame.virtBase());
     std.crypto.secureZero(DirectoryEntry, pml4);
 
-    for (0..config.kernelSizePages()) |i| map(
+    for (0..config.kernelSizePages()) |i| instance.map(
         kernel_base_virt_address + i * config.page_size_bytes,
         pmm.kernelPhysBase() + i * config.page_size_bytes,
         .{},
@@ -183,7 +189,7 @@ pub fn init(kernel_base_virt_address: types.VirtAddr) void {
 
     for (0..pmm.frameCount()) |i| {
         const frame_phys_base: types.PhysAddr = @intCast(i * config.page_size_bytes);
-        map(frame_phys_base + pmm.hhdmOffset(), frame_phys_base, .{}) catch
+        instance.map(frame_phys_base + pmm.hhdmOffset(), frame_phys_base, .{}) catch
             @panic(oom_msg);
     }
 
@@ -197,4 +203,6 @@ pub fn init(kernel_base_virt_address: types.VirtAddr) void {
         :
         : [val] "r" (cr3),
     );
+
+    return instance;
 }

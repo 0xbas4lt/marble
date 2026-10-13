@@ -1,8 +1,9 @@
 const std = @import("std");
 const config = @import("config.zig");
 const types = @import("types.zig");
-const pmm = @import("physical_memory_manager.zig");
-const vmm = @import("virtual_memory_manager.zig");
+
+const Pmm = @import("physical_memory_manager.zig");
+const Vmm = @import("virtual_memory_manager.zig");
 
 pub const Error = error{
     InvalidAddress,
@@ -15,15 +16,17 @@ fn randomIntStub(from: usize, to: usize) usize {
 }
 
 pub const LoadedExecutable = struct {
+    pmm: *Pmm,
+    vmm: *Vmm,
     allocator: std.mem.Allocator,
-    frames: []pmm.PhysFrame,
+    frames: []Pmm.PhysFrame,
     page_addrs: []types.VirtAddr,
     entry_addr: types.VirtAddr,
 
     pub fn deinit(self: *LoadedExecutable) void {
         // FIXME: Add pages unmap once VMM supports unmapping.
         self.allocator.free(self.page_addrs);
-        for (self.frames) |frame| pmm.freeFrame(frame);
+        for (self.frames) |frame| self.pmm.freeFrame(frame);
         self.allocator.free(self.frames);
     }
 };
@@ -35,7 +38,7 @@ const PageBitmapFlags = packed struct(u4) {
     execute: u1,
 };
 
-pub fn load(allocator: std.mem.Allocator, exec_info: *const types.ExecutableInfo) Error!LoadedExecutable {
+pub fn load(pmm: *Pmm, vmm: *Vmm, allocator: std.mem.Allocator, exec_info: *const types.ExecutableInfo) Error!LoadedExecutable {
     // Restict alignment to be page-alignment, and the requested base_alignmet.
     // `config.page_size_bytes` and `exec_info.load_bias_alignment` must be a power-of-two.
     const exec_alignment = std.mem.Alignment.fromByteUnits(@max(exec_info.load_bias_alignment.toByteUnits(), config.page_size_bytes));
@@ -108,7 +111,7 @@ pub fn load(allocator: std.mem.Allocator, exec_info: *const types.ExecutableInfo
         }
     }
 
-    var allocated_frames: std.ArrayList(pmm.PhysFrame) = .empty;
+    var allocated_frames: std.ArrayList(Pmm.PhysFrame) = .empty;
     var allocated_page_addrs: std.ArrayList(types.VirtAddr) = .empty;
     errdefer {
         // FIXME: Unmap the pages (currently not possible)
@@ -126,8 +129,8 @@ pub fn load(allocator: std.mem.Allocator, exec_info: *const types.ExecutableInfo
         allocated_frames.append(allocator, frame) catch
             return Error.OutOfMemory;
         vmm.map(page_addr, frame.physBase(), .{}) catch |err| switch (err) {
-            vmm.Error.OutOfMemory => return Error.OutOfMemory,
-            vmm.Error.AlreadyMapped => @panic("can't load executable: already mapped"),
+            Vmm.Error.OutOfMemory => return Error.OutOfMemory,
+            Vmm.Error.AlreadyMapped => @panic("can't load executable: already mapped"),
         };
         allocated_page_addrs.append(allocator, page_addr) catch
             return Error.OutOfMemory;
@@ -154,6 +157,8 @@ pub fn load(allocator: std.mem.Allocator, exec_info: *const types.ExecutableInfo
     errdefer allocator.free(page_addrs_slice);
 
     return LoadedExecutable{
+        .pmm = pmm,
+        .vmm = vmm,
         .allocator = allocator,
         .frames = frames_slice,
         .page_addrs = page_addrs_slice,
