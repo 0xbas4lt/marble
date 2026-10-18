@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-zig build -Doptimize=Debug
+zig build -Doptimize=ReleaseSafe
 # zig build -Doptimize=ReleaseFast
 
 rm -rf build/

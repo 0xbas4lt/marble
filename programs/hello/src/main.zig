@@ -1,3 +1,7 @@
+comptime {
+    _ = @import("compiler_rt_patched");
+}
+
 const COM1: u16 = 0x3f8;
 
 inline fn outb(port: u16, val: u8) void {

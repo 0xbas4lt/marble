@@ -1,7 +1,7 @@
 .{
     .name = .marble,
     .version = "0.0.0",
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .paths = .{"."},
     .dependencies = .{},
     .fingerprint = 0xdf0f25ff177e7566,

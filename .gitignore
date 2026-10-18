@@ -1,3 +1,4 @@
 /zig-out/
 /build/
 /.zig-cache/
+/.zig-global-cache/

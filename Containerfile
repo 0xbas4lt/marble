@@ -1,7 +1,7 @@
 FROM debian:bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    ZIG_VERSION=0.16.0 \
+    ZIG_VERSION=0.17.0 \
     LIMINE_BRANCH=v9.x-binary
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

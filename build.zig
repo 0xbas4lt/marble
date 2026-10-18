@@ -12,12 +12,12 @@ pub fn build(b: *std.Build) void {
         var disabled = std.Target.Cpu.Feature.Set.empty;
         var enabled = std.Target.Cpu.Feature.Set.empty;
 
-        disabled.addFeature(@intFromEnum(Feature.mmx));
-        disabled.addFeature(@intFromEnum(Feature.sse));
-        disabled.addFeature(@intFromEnum(Feature.sse2));
-        disabled.addFeature(@intFromEnum(Feature.avx));
-        disabled.addFeature(@intFromEnum(Feature.avx2));
-        enabled.addFeature(@intFromEnum(Feature.soft_float));
+        disabled.addFeature(@backingInt(Feature.mmx));
+        disabled.addFeature(@backingInt(Feature.sse));
+        disabled.addFeature(@backingInt(Feature.sse2));
+        disabled.addFeature(@backingInt(Feature.avx));
+        disabled.addFeature(@backingInt(Feature.avx2));
+        enabled.addFeature(@backingInt(Feature.soft_float));
 
         query.cpu_features_sub = disabled;
         query.cpu_features_add = enabled;
@@ -28,8 +28,8 @@ pub fn build(b: *std.Build) void {
     const target = b.resolveTargetQuery(target_query);
     const optimize = b.standardOptimizeOption(.{});
 
-    const kernel_mod = b.createModule(.{
-        .root_source_file = b.path("kernel/src/main.zig"),
+    const compiler_rt_patched_mod = b.createModule(.{
+        .root_source_file = b.path("compiler_rt_patched/compiler_rt.zig"),
         .target = target,
         .optimize = optimize,
         .code_model = .kernel,
@@ -39,6 +39,18 @@ pub fn build(b: *std.Build) void {
         .omit_frame_pointer = false,
         .strip = false,
     });
+
+    const kernel_mod = b.createModule(.{
+        .root_source_file = b.path("kernel/src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .code_model = .kernel,
+        .red_zone = false,
+        .pic = false,
+        .omit_frame_pointer = false,
+        .strip = false,
+    });
+    kernel_mod.addImport("compiler_rt_patched", compiler_rt_patched_mod);
 
     const kernel = b.addExecutable(.{
         .name = "kernel.elf",
@@ -57,6 +69,7 @@ pub fn build(b: *std.Build) void {
         .use_lld = true,
     });
 
+    kernel.bundle_compiler_rt = false;
     kernel.setLinkerScript(b.path("kernel/linker/x86_64.ld"));
     kernel.lto = .none;
     b.installArtifact(kernel);
@@ -71,6 +84,8 @@ pub fn build(b: *std.Build) void {
         .use_llvm = true,
         .use_lld = true,
     });
+    program_hello.root_module.addImport("compiler_rt_patched", compiler_rt_patched_mod);
+    program_hello.bundle_compiler_rt = false; // FIXME: Rework after moving to userland.
     program_hello.pie = true;
     program_hello.setLinkerScript(b.path("programs/linker/x86_64.ld"));
     b.installArtifact(program_hello);

@@ -6,6 +6,11 @@ const PhysicalMemoryManager = @import("PhysicalMemoryManager.zig");
 const types = @import("types.zig");
 const config = @import("config.zig");
 
+// Zig built-ins
+comptime {
+    _ = @import("compiler_rt_patched");
+}
+
 const Gdt = arch.gdt.Gdt(arch);
 const Error = struct {};
 
