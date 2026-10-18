@@ -1,14 +1,8 @@
-const std = @import("std");
 const types = @import("types.zig");
+const std = @import("std");
 
-pub const page_size_bytes: usize = 4096;
-
-pub const log_buffer_size_bytes: usize = 1024 * 2;
-
-pub const executable_arena_start: types.VirtAddr = 0x0000000040000000;
-pub const executable_arena_end: types.VirtAddr = 0x0000010000000000;
-pub const kernel_heap_arena_start: types.VirtAddr = 0xffffffdf80000000;
-pub const kernel_heap_arena_end: types.VirtAddr = 0xffffffff7fffffff;
+/// Page size in bytes.
+pub const page_size = 4096;
 
 extern const _kernel_start: u8;
 extern const _kernel_end: u8;
@@ -18,11 +12,11 @@ pub inline fn kernelStart() types.VirtAddr {
 pub inline fn kernelEnd() types.VirtAddr {
     return @intFromPtr(&_kernel_end);
 }
-pub inline fn kernelSizeBytes() usize {
+pub inline fn kernelSize() usize {
     return @as(usize, kernelEnd() - kernelStart());
 }
-pub inline fn kernelSizePages() usize {
-    return std.math.divCeil(usize, kernelSizeBytes(), page_size_bytes) catch
+pub inline fn kernelPagesize() usize {
+    return std.math.divCeil(usize, kernelSize(), page_size) catch
         unreachable;
 }
 

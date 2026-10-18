@@ -1,6 +1,50 @@
 //! Limine protocol spec (v8.x branch):
 //!   https://github.com/limine-bootloader/limine/blob/v8.x/PROTOCOL.md
+const types = @import("types.zig");
 
+const Limine = @This();
+
+hhdm_offset: types.PhysAddr,
+exe_phys_base: types.PhysAddr,
+exe_virt_base: types.PhysAddr,
+/// Invalidated after reclaiming bootloader memory.
+memmap: *const MemmapResponse,
+/// Invalidated after reclaiming bootloader memory.
+modules: *const ModuleResponse,
+
+pub const Error = error{Unsupported};
+
+pub fn init() Error!Limine {
+    if (!base_revision.isSupported())
+        return Error.Unsupported;
+
+    const hhdm_offset: types.PhysAddr =
+        if (hhdm_request.response) |resp|
+            @as(types.PhysAddr, resp.offset)
+        else
+            return Error.Unsupported;
+
+    const exe_phys_base, const exe_virt_base =
+        if (executable_address_request.response) |resp|
+            .{ resp.physical_base, resp.virtual_base }
+        else
+            return Error.Unsupported;
+
+    const memmap_resp = if (memmap_request.response) |resp| resp else return Error.Unsupported;
+    const modules = if (module_request.response) |resp| resp else return Error.Unsupported;
+
+    return .{
+        .hhdm_offset = hhdm_offset,
+        .exe_phys_base = exe_phys_base,
+        .exe_virt_base = exe_virt_base,
+        .memmap = memmap_resp,
+        .modules = modules,
+    };
+}
+
+/// --------------------------------------------------------------------
+/// Limine protocol implementation
+/// --------------------------------------------------------------------
 const COMMON_0: u64 = 0xc7b1dd30df4c8b88;
 const COMMON_1: u64 = 0x0a82e883a194f07b;
 
@@ -11,10 +55,10 @@ const COMMON_1: u64 = 0x0a82e883a194f07b;
 export var request_start_marker: RequestsStartMarker linksection(".limine_requests_start") = RequestsStartMarker{};
 export var request_end_marker: RequestsEndMarker linksection(".limine_requests_end") = RequestsEndMarker{};
 
-pub export var base_revision: BaseRevision linksection(".limine_requests") = .init(3);
-pub export var hhdm_request: HhdmRequest linksection(".limine_requests") = HhdmRequest{};
-pub export var memmap_request: MemmapRequest linksection(".limine_requests") = MemmapRequest{};
-pub export var module_request: ModuleRequest linksection(".limine_requests") = ModuleRequest{};
+export var base_revision: BaseRevision linksection(".limine_requests") = .init(3);
+export var hhdm_request: HhdmRequest linksection(".limine_requests") = HhdmRequest{};
+export var memmap_request: MemmapRequest linksection(".limine_requests") = MemmapRequest{};
+export var module_request: ModuleRequest linksection(".limine_requests") = ModuleRequest{};
 pub export var framebuffer_request: FramebufferRequest linksection(".limine_requests") = FramebufferRequest{};
 pub export var rsdp_request: RsdpRequest linksection(".limine_requests") = RsdpRequest{};
 pub export var executable_address_request: ExecutableAddressRequest linksection(".limine_requests") = ExecutableAddressRequest{};
@@ -139,7 +183,7 @@ pub const MemmapType = enum(u64) {
 pub const MemmapEntry = extern struct {
     base: u64,
     length: u64,
-    type: u64,
+    type: MemmapType,
 };
 
 // ---------------------------------------------------------------------

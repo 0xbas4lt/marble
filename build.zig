@@ -74,4 +74,16 @@ pub fn build(b: *std.Build) void {
     program_hello.pie = true;
     program_hello.setLinkerScript(b.path("programs/linker/x86_64.ld"));
     b.installArtifact(program_hello);
+
+    const kernel_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("kernel/src/tests.zig"),
+            .target = b.graph.host,
+            .optimize = optimize,
+        }),
+    });
+
+    const run_tests = b.addRunArtifact(kernel_tests);
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_tests.step);
 }
