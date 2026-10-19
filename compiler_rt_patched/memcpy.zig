@@ -1,6 +1,6 @@
 const std = @import("std");
 const assert = std.debug.assert;
-const compiler_rt = @import("../compiler_rt.zig");
+const compiler_rt = @import("compiler_rt.zig");
 const symbol = compiler_rt.symbol;
 const builtin = @import("builtin");
 

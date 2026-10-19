@@ -2,8 +2,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-zig build -Doptimize=ReleaseSafe
+# zig build -Doptimize=ReleaseSafe
 # zig build -Doptimize=ReleaseFast
+zig build -Doptimize=Debug
 
 rm -rf build/
 mkdir -p build/iso_root/boot build/iso_root/system build/iso_root/EFI/BOOT

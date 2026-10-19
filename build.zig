@@ -32,12 +32,9 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("compiler_rt_patched/compiler_rt.zig"),
         .target = target,
         .optimize = optimize,
-        .code_model = .kernel,
-        .red_zone = false,
-        .pic = false,
-
-        .omit_frame_pointer = false,
-        .strip = false,
+        .stack_check = false,
+        .stack_protector = false,
+        .no_builtin = true,
     });
 
     const kernel_mod = b.createModule(.{
@@ -49,6 +46,7 @@ pub fn build(b: *std.Build) void {
         .pic = false,
         .omit_frame_pointer = false,
         .strip = false,
+        .sanitize_c = .off,
     });
     kernel_mod.addImport("compiler_rt_patched", compiler_rt_patched_mod);
 
@@ -80,6 +78,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("programs/hello/src/main.zig"),
             .target = target,
             .optimize = optimize,
+            .sanitize_c = .off, // FIXME: Rework after moving to userland.
         }),
         .use_llvm = true,
         .use_lld = true,
