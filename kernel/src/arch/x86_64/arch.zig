@@ -66,6 +66,21 @@ pub var cpuid_info: struct {
     max_linear_address_bits: ?u8 = null,
 } = .{};
 
+pub fn port_write_byte(port: u16, value: u8) void {
+    asm volatile ("outb %[value], %[port]"
+        :
+        : [value] "{al}" (value),
+          [port] "{dx}" (port),
+    );
+}
+
+pub fn port_read_byte(port: u16) u8 {
+    return asm volatile ("inb %[port], %[out]"
+        : [out] "={al}" (-> u8),
+        : [port] "{dx}" (port),
+    );
+}
+
 /// Queries the CPU, and initialized internal variables.
 pub fn init() void {
     cpuid_info.ext_cpuid_max_leaf = cpuid(0x80000000, 0).eax;

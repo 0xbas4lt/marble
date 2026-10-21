@@ -1,10 +1,12 @@
 const std = @import("std");
 
 const arch = @import("arch.zig").current;
+const config = @import("config.zig");
+const KernelEventLogger = @import("KernelEventLogger.zig");
 const Limine = @import("limine.zig");
 const PhysicalMemoryManager = @import("PhysicalMemoryManager.zig");
+const SerialDriver = @import("SerialDriver.zig");
 const types = @import("types.zig");
-const config = @import("config.zig");
 
 // Zig built-ins
 comptime {
@@ -13,6 +15,11 @@ comptime {
 
 const Gdt = arch.gdt.Gdt(arch);
 const Error = struct {};
+
+var kevent_logger_buf: [256]KernelEventLogger.Record = undefined;
+var kevent_logger: KernelEventLogger = undefined;
+var driver_com_1: ?SerialDriver = null;
+var kevent_sink_com_1: ?SerialDriver.KernelEventSink = null;
 
 export fn _start() callconv(.c) noreturn {
     main() catch |err| switch (err) {
@@ -24,8 +31,18 @@ export fn _start() callconv(.c) noreturn {
     arch.halt();
 }
 
+fn clock_count_fn_stub() ?usize {
+    return null;
+}
+
 fn main() !void {
-    // serial.init();
+    arch.init();
+
+    kevent_logger = .init(&kevent_logger_buf, clock_count_fn_stub);
+    kevent_logger.log(.milestone_kernel_booting);
+
+    initSerialDriver();
+    if (kevent_sink_com_1) |*sink| sink.flush();
 
     const limine = Limine.init() catch |err| switch (err) {
         Limine.Error.Unsupported => @panic("cannot boot: Limine version, or a requsted protocol is not supported"),
@@ -33,8 +50,6 @@ fn main() !void {
 
     const pmm = initPmmWithLimine(limine.memmap, config.page_size, limine.hhdm_offset);
     _ = pmm;
-
-    arch.init();
 
     var gdt = Gdt.init();
     gdt.load();
@@ -98,4 +113,10 @@ fn initPmmWithLimine(
     pmm.lockPmmFrames();
 
     return pmm;
+}
+
+fn initSerialDriver() void {
+    driver_com_1 = SerialDriver.init(0x3F8, arch.port_write_byte, arch.port_read_byte) catch null;
+    if (driver_com_1) |*d|
+        kevent_sink_com_1 = d.initKernelEventSink(kevent_logger.iter());
 }
