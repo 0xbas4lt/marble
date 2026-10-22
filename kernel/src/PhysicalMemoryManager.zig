@@ -193,6 +193,10 @@ pub fn free(self: *PhysicalMemoryManager, span: FrameSpan) FreeError!void {
     }, false);
 }
 
+pub fn frameSpanPhysbase(self: *const PhysicalMemoryManager, frame_span: FrameSpan) types.PhysAddr {
+    return frame_span.index * self.page_size;
+}
+
 /// --------------------------------------------------------------------
 /// AI-generated tests
 /// --------------------------------------------------------------------

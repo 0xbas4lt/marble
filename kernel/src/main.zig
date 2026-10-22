@@ -7,6 +7,8 @@ const Limine = @import("limine.zig");
 const PhysicalMemoryManager = @import("PhysicalMemoryManager.zig");
 const SerialDriver = @import("SerialDriver.zig");
 const types = @import("types.zig");
+const heap = @import("heap.zig");
+const PhysicalFreeListAllocator = heap.PhysicalFreeListAllocator(PhysicalMemoryManager);
 
 // Zig built-ins
 comptime {
@@ -48,8 +50,15 @@ fn main() !void {
         Limine.Error.Unsupported => @panic("cannot boot: Limine version, or a requsted protocol is not supported"),
     };
 
-    const pmm = initPmmWithLimine(limine.memmap, config.page_size, limine.hhdm_offset);
-    _ = pmm;
+    var pmm = initPmmWithLimine(limine.memmap, config.page_size, limine.hhdm_offset);
+    kevent_logger.log(.milestone_physical_memory_manager_ready);
+    if (kevent_sink_com_1) |*sink| sink.flush();
+
+    var kalloc_phys: PhysicalFreeListAllocator = undefined;
+    kalloc_phys.init(&pmm, limine.hhdm_offset, 4, config.page_size) catch
+        @panic("out of memory");
+    kevent_logger.log(.milestone_kernel_heap_ready);
+    if (kevent_sink_com_1) |*sink| sink.flush();
 
     var gdt = Gdt.init();
     gdt.load();
